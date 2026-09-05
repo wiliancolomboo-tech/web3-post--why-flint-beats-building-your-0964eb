@@ -1,0 +1,64 @@
+flowchart TD
+    subgraph ClientAndKeepers["Off-Chain Agents & Callers"]
+        U[Retail Trader / Jupiter Aggregator CPI]
+        K[Prop Desk Keeper Engine]
+        O[Pyth / Switchboard Push Oracles]
+    end
+
+    subgraph ProgramBoundary["Flint Program Boundary (Solana Sealevel Engine)"]
+        direction TB
+
+        subgraph SecurityGuards["Gatekeeper & Security Guards"]
+            SG1[Reentrancy Guard: Transient Flag Check]
+            SG2[Oracle Staleness & Deviation Filter]
+            SG3[Signer & PDA Verification: Seeds + Bumps]
+        end
+
+        subgraph CoreState["Account State Layer (Zero-Copy / Pod Layout)"]
+            PoolConfig[Pool Configuration PDA<br/>• Seeds: ['flint_pool', BaseMint, QuoteMint]<br/>• Dynamic Base Spread & Volatility Multiplier]
+            InventoryState[Inventory & Skew State PDA<br/>• Target Ratio vs Current Balance<br/>• Cumulative Delta Volume]
+            AuthorityPDA[Pool Authority PDA<br/>• Seeds: ['vault_auth', PoolConfig]]
+        end
+
+        subgraph ExecutionEngine["Execution & Math Primitives"]
+            MathCore[Inventory-Skew & Dynamic Fee Engine<br/>• Fixed-Point 64.64 Arithmetic<br/>• Asymmetric Slippage Dampeners]
+            SwapExec[Swap Settlement Unit<br/>• Token-2022 Transfer Hook Adapter<br/>• Net Balance Delta Verifier]
+        end
+
+        subgraph VaultStorage["SPL Token / Token-2022 Vault Accounts"]
+            BaseVault[Base Token Vault PDA<br/>• Owner: AuthorityPDA]
+            QuoteVault[Quote Token Vault PDA<br/>• Owner: AuthorityPDA]
+        end
+    end
+
+    %% Interactions & CPIs
+    O -->|Fresh Price Feeds| SG2
+    K -->|Skew Calibration & Target Rebalance| SG3
+    U -->|Execute Swap Instruction| SG1
+
+    SG1 --> SG2
+    SG2 --> SG3
+    SG3 --> PoolConfig
+    PoolConfig --> InventoryState
+
+    InventoryState --> MathCore
+    MathCore --> SwapExec
+
+    SwapExec -->|Signed CPI Transfer: Base| BaseVault
+    SwapExec -->|Signed CPI Transfer: Quote| QuoteVault
+    AuthorityPDA -.->|Seeds Signing| BaseVault
+    AuthorityPDA -.->|Seeds Signing| QuoteVault
+
+    SwapExec -->|Post-Execution Balance Check| SG1
+
+    classDef client fill:#2d3748,stroke:#4a5568,stroke-width:2px,color:#fff;
+    classDef security fill:#9b2c2c,stroke:#e53e3e,stroke-width:2px,color:#fff;
+    classDef state fill:#2b6cb0,stroke:#4299e1,stroke-width:2px,color:#fff;
+    classDef exec fill:#2f855a,stroke:#48bb78,stroke-width:2px,color:#fff;
+    classDef vault fill:#744210,stroke:#d69e2e,stroke-width:2px,color:#fff;
+
+    class U,K,O client;
+    class SG1,SG2,SG3 security;
+    class PoolConfig,InventoryState,AuthorityPDA state;
+    class MathCore,SwapExec exec;
+    class BaseVault,QuoteVault vault;

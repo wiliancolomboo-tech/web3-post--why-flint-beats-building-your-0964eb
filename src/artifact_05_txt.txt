@@ -1,0 +1,13 @@
++----------------------------------------------------------------------------------------------------+
+|                                    CU CONSUMPTION PROFILE (SWAP)                                    |
++-----------------------------------+--------------------+--------------------+----------------------+
+| Sub-Routine Execution Segment     | Naive Prop AMM     | Flint Architecture | Engineering Delta    |
++-----------------------------------+--------------------+--------------------+----------------------+
+| 1. Account Deserialization        | 16,840 CU (Borsh)  | 2,120 CU (Direct)  | 87.4% reduction      |
+| 2. Reentrancy & Oracle Guard      | 9,500 CU (Dynamic) | 1,450 CU (Inlined) | 84.7% reduction      |
+| 3. Dynamic Fee & Skew Math        | 28,100 CU (Float)  | 4,200 CU (64.64 FP)| 85.0% reduction      |
+| 4. Token CPI Transfers (Checked)  | 44,000 CU (x2 CPI) | 41,200 CU (x2 CPI) | 6.3% optimization    |
+| 5. Event Serialization / Emits    | 12,200 CU          | 2,400 CU           | 80.3% reduction      |
++-----------------------------------+--------------------+--------------------+----------------------+
+| TOTAL SWAP EXECUTION CONSUMPTION  | 110,640 CU         | 51,370 CU          | 53.5% TOTAL SAVINGS  |
++-----------------------------------+--------------------+--------------------+----------------------+

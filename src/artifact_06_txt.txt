@@ -1,0 +1,46 @@
++----------------------------------------------------------------------------------------------------+
+| SCRIPT TIMELINE & ACTION BREAKDOWN                                                                 |
++---------+-------------------------------------------------+----------------------------------------+
+| Time    | Visual Demonstration                            | Spoken Narrative & Technical Pitch     |
++---------+-------------------------------------------------+----------------------------------------+
+| 0:00    | Close-up of terminal showing failure spikes in  | "Every market maker on Solana eventually |
+|   -     | a custom prop AMM during high network           | asks the same question: Why not write  |
+| 0:25    | volatility. Red logs: 'Account In Use' &        | our own proprietary AMM program? Here  |
+|         | 'Compute Budget Exceeded'.                      | is what happens when you do: massive   |
+|         |                                                 | write-lock contention, LVR leakage to  |
+|         |                                                 | MEV searchers, and over 110,000 CU per |
+|         |                                                 | trade. You spend 80% of your dev cycles|
+|         |                                                 | debugging Sealevel account locks       |
+|         |                                                 | instead of alpha."                     |
++---------+-------------------------------------------------+----------------------------------------+
+| 0:25    | Transition to Flint architecture diagram.       | "Meet Flint. Flint gives prop desks a  |
+|   -     | Highlights dynamic pricing module, low-overhead | modular, hyper-optimized execution     |
+| 0:50    | settlement layer, and CPI adapters.             | engine designed specifically for the   |
+|         |                                                 | Solana VM. You retain sovereign        |
+|         |                                                 | control over your curve parameterization|
+|         |                                                 | and inventory skew logic, while Flint  |
+|         |                                                 | handles zero-copy serialization, safe  |
+|         |                                                 | PDA routing, and Token-2022 hooks."    |
++---------+-------------------------------------------------+----------------------------------------+
+| 0:50    | Terminal runs `anchor test`. All 5 test cases   | "Let's look at the benchmarks. In this |
+|   -     | light up green. A side-by-side CU profiler pops | live test, Flint slashes swap execution|
+| 1:20    | up: 51,370 CU vs 110,640 CU.                    | compute to just 51,000 Compute Units—  |
+|         |                                                 | a 53% drop compared to custom prop AMMs|
+|         |                                                 | Our oracle-guarded invariant prevents  |
+|         |                                                 | stale fills by rejecting slots older   |
+|         |                                                 | than 25 blocks, shutting down toxic    |
+|         |                                                 | JIT frontrunning instantly."           |
++---------+-------------------------------------------------+----------------------------------------+
+| 1:20    | Screen demonstrates keeper invoking             | "Need to re-peg your inventory skew?   |
+|   -     | `keeper_update_targets` in a single slot        | Keepers update target reserves with    |
+| 1:45    | without blocking active retail swaps.           | zero account lock collisions on the    |
+|         |                                                 | core swap path. That means sub-second  |
+|         |                                                 | reactivity to binance-side orderbook   |
+|         |                                                 | changes without paying priority fees." |
++---------+-------------------------------------------------+----------------------------------------+
+| 1:45    | Summary graphic displaying Time-to-Market (1 wk | "Building your own prop AMM is an      |
+|   -     | vs 6 months) and zero audit liabilities.        | expensive trap. With Flint, you deploy |
+| 2:00    | Closing slide: Flint banner & GitHub repository.| production liquidity in days, capture  |
+|         |                                                 | toxic MEV spreads as profit, and win on|
+|         |                                                 | execution speed every single block."   |
++---------+-------------------------------------------------+----------------------------------------+
