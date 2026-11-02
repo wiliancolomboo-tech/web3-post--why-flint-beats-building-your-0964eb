@@ -1,0 +1,1 @@
+yarn ts-node tests/flint_hook_amm.ts

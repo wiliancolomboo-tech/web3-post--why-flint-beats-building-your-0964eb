@@ -1,193 +1,140 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token_interface::{self, Mint, TokenAccount, TokenInterface, TransferChecked};
+use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
+use pyth_sdk_solana::load_price_feed_from_account_info;
 
-declare_id!("FLiNTqX1P4o2k9R8v7N2jZcE8VfBqH9m1bY4sA3gM9e");
+declare_id!("FLiNT111111111111111111111111111111111111111");
 
-pub const PRECISION_SCALE: u128 = 1_000_000_000_000; // 1e12 fixed-point scale
-pub const MAX_BPS: u64 = 10_000;
-pub const MAX_ORACLE_STALENESS_SLOTS: u64 = 25;
+pub const MAX_PRICE_AGE_SECONDS: u64 = 30;
+pub const MAX_CONF_WIDTH_BPS: u64 = 100; // Max 1% confidence width to reject manipulated prices
+pub const BPS_DENOMINATOR: u64 = 10_000;
 
 #[program]
-pub mod flint_prop_amm {
+pub mod flint_adapter {
     use super::*;
 
-    pub fn initialize_pool(
-        ctx: Context<InitializePool>,
-        base_fee_bps: u16,
-        skew_sensitivity_bps: u16,
-        target_base_reserve: u64,
-        target_quote_reserve: u64,
+    /// Initializes a protocol registry instance to interact with Flint's shared liquidity
+    pub fn initialize_registry(
+        ctx: Context<InitializeRegistry>,
+        fee_tier_bps: u16,
     ) -> Result<()> {
-        require!(base_fee_bps <= 2_000, FlintError::FeeTooHigh); // Max 20%
-        require!(skew_sensitivity_bps <= 5_000, FlintError::SensitivityTooHigh);
-
-        let pool = &mut ctx.accounts.pool_config;
-        pool.base_mint = ctx.accounts.base_mint.key();
-        pool.quote_mint = ctx.accounts.quote_mint.key();
-        pool.base_vault = ctx.accounts.base_vault.key();
-        pool.quote_vault = ctx.accounts.quote_vault.key();
-        pool.authority = ctx.accounts.authority.key();
-        pool.authority_bump = ctx.bumps.pool_authority;
-        pool.pool_bump = ctx.bumps.pool_config;
-        pool.is_locked = false;
-
-        pool.base_fee_bps = base_fee_bps;
-        pool.skew_sensitivity_bps = skew_sensitivity_bps;
-        pool.target_base_reserve = target_base_reserve;
-        pool.target_quote_reserve = target_quote_reserve;
-        pool.last_oracle_slot = Clock::get()?.slot;
-
-        emit!(PoolInitialized {
-            pool: pool.key(),
-            base_mint: pool.base_mint,
-            quote_mint: pool.quote_mint,
-        });
-
+        require!(fee_tier_bps <= 1000, FlintError::InvalidFeeTier);
+        let registry = &mut ctx.accounts.registry;
+        registry.authority = ctx.accounts.authority.key();
+        registry.fee_tier_bps = fee_tier_bps;
+        registry.is_paused = false;
+        registry.total_swapped_volume = 0;
+        registry.bump = ctx.bumps.registry;
         Ok(())
     }
 
-    pub fn swap(
-        ctx: Context<Swap>,
+    /// Executes an atomic swap using Flint's dynamic curve with oracle confidence protection
+    pub fn execute_flint_swap(
+        ctx: Context<ExecuteFlintSwap>,
         amount_in: u64,
-        min_amount_out: u64,
-        oracle_price_feed: u64, // Scaled by 1e6
-        feed_slot: u64,
+        minimum_amount_out: u64,
+        max_staleness: i64,
     ) -> Result<()> {
-        let pool = &mut ctx.accounts.pool_config;
-        require!(!pool.is_locked, FlintError::ReentrancyDetected);
-        pool.is_locked = true; // Transient reentrancy lock
+        require!(!ctx.accounts.registry.is_paused, FlintError::ProtocolPaused);
+        require!(amount_in > 0, FlintError::ZeroAmount);
 
-        let current_slot = Clock::get()?.slot;
+        // 1. Oracle Validation (Mitigating LVR & Stale Arbitrage)
+        let clock = Clock::get()?;
+        let price_feed = load_price_feed_from_account_info(&ctx.accounts.pyth_oracle)
+            .map_err(|_| FlintError::InvalidOracleFeed)?;
+        
+        let current_price = price_feed
+            .get_price_no_older_than(clock.unix_timestamp, max_staleness as u64)
+            .ok_or(FlintError::StalePriceOracle)?;
+
+        // Assert oracle confidence width <= MAX_CONF_WIDTH_BPS
+        let conf_width = ((current_price.conf as u128)
+            .checked_mul(BPS_DENOMINATOR as u128)
+            .unwrap())
+            / (current_price.price.abs() as u128);
         require!(
-            current_slot.saturating_sub(feed_slot) <= MAX_ORACLE_STALENESS_SLOTS,
-            FlintError::StaleOracleFeed
+            conf_width <= MAX_CONF_WIDTH_BPS as u128,
+            FlintError::OracleConfidenceTooWide
         );
 
-        let base_reserve = ctx.accounts.base_vault.amount;
-        let quote_reserve = ctx.accounts.quote_vault.amount;
+        // 2. Derive dynamic pricing with Flint dynamic spread formula
+        // Spreads scale with market volatility: Effective_Fee = Base_Fee + f(Conf)
+        let effective_fee_bps = ctx.accounts.registry.fee_tier_bps as u64
+            + ((conf_width as u64) / 10);
+        
+        let protocol_cut = (amount_in as u128)
+            .checked_mul(effective_fee_bps as u128)
+            .unwrap()
+            .checked_div(BPS_DENOMINATOR as u128)
+            .unwrap() as u64;
 
-        let a_to_b = ctx.accounts.user_token_source.mint == pool.base_mint;
+        let net_amount_in = amount_in
+            .checked_sub(protocol_cut)
+            .ok_or(FlintError::MathUnderflow)?;
 
-        // Dynamic fee calculation based on post-trade skew
-        let effective_fee_bps = calculate_dynamic_fee(
-            a_to_b,
-            amount_in,
-            base_reserve,
-            quote_reserve,
-            pool.target_base_reserve,
-            pool.target_quote_reserve,
-            pool.base_fee_bps,
-            pool.skew_sensitivity_bps,
-        )?;
+        // 3. Compute dynamic expected out via constant product invariant maintained by Flint
+        let vault_in_balance = ctx.accounts.vault_in.amount;
+        let vault_out_balance = ctx.accounts.vault_out.amount;
 
-        // Output calculation using Oracle-anchored invariant
-        let net_amount_in = (amount_in as u128)
-            .checked_mul((MAX_BPS - effective_fee_bps as u64) as u128)
-            .ok_or(FlintError::MathOverflow)?
-            .checked_div(MAX_BPS as u128)
-            .ok_or(FlintError::MathOverflow)? as u64;
+        require!(vault_in_balance > 0 && vault_out_balance > 0, FlintError::InsufficientVaultLiquidity);
 
-        let amount_out = calculate_output_amount(
-            a_to_b,
-            net_amount_in,
-            oracle_price_feed,
-            ctx.accounts.base_mint.decimals,
-            ctx.accounts.quote_mint.decimals,
-        )?;
+        // (x + dx) * (y - dy) = x * y
+        // dy = (y * dx) / (x + dx)
+        let amount_out = (vault_out_balance as u128)
+            .checked_mul(net_amount_in as u128)
+            .unwrap()
+            .checked_div((vault_in_balance as u128).checked_add(net_amount_in as u128).unwrap())
+            .unwrap() as u64;
 
-        require!(amount_out >= min_amount_out, FlintError::SlippageExceeded);
+        // 4. Slippage enforcement
+        require!(amount_out >= minimum_amount_out, FlintError::SlippageExceeded);
 
-        // Execute Inbound Transfer (User -> Pool Vault)
-        let base_mint_key = pool.base_mint;
-        let quote_mint_key = pool.quote_mint;
-        let (in_vault, out_vault, in_mint, out_mint) = if a_to_b {
-            (
-                ctx.accounts.base_vault.to_account_info(),
-                ctx.accounts.quote_vault.to_account_info(),
-                ctx.accounts.base_mint.to_account_info(),
-                ctx.accounts.quote_mint.to_account_info(),
-            )
-        } else {
-            (
-                ctx.accounts.quote_vault.to_account_info(),
-                ctx.accounts.base_vault.to_account_info(),
-                ctx.accounts.quote_mint.to_account_info(),
-                ctx.accounts.base_mint.to_account_info(),
-            )
-        };
+        // 5. Atomic transfers via Token Program CPI
+        // Transfer User -> Flint Vault In
+        let transfer_in_ctx = CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.user_token_in.to_account_info(),
+                to: ctx.accounts.vault_in.to_account_info(),
+                authority: ctx.accounts.user.to_account_info(),
+            },
+        );
+        token::transfer(transfer_in_ctx, amount_in)?;
 
-        // Transfer tokens from user to vault
-        token_interface::transfer_checked(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                TransferChecked {
-                    from: ctx.accounts.user_token_source.to_account_info(),
-                    to: in_vault,
-                    authority: ctx.accounts.user.to_account_info(),
-                    mint: in_mint,
-                },
-            ),
-            amount_in,
-            if a_to_b { ctx.accounts.base_mint.decimals } else { ctx.accounts.quote_mint.decimals },
-        )?;
-
-        // Execute Outbound Transfer (Pool Vault -> User)
-        let pool_key = pool.key();
-        let auth_seeds: &[&[&[u8]]] = &[&[
-            b"vault_auth",
-            pool_key.as_ref(),
-            &[pool.authority_bump],
+        // Transfer Flint Vault Out -> User via PDA signer seeds
+        let registry_key = ctx.accounts.registry.key();
+        let seeds: &[&[&[u8]]] = &[&[
+            b"flint_vault",
+            registry_key.as_ref(),
+            ctx.accounts.mint_out.to_account_info().key.as_ref(),
+            &[ctx.bumps.vault_out],
         ]];
 
-        token_interface::transfer_checked(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                TransferChecked {
-                    from: out_vault,
-                    to: ctx.accounts.user_token_destination.to_account_info(),
-                    authority: ctx.accounts.pool_authority.to_account_info(),
-                    mint: out_mint,
-                },
-                auth_seeds,
-            ),
-            amount_out,
-            if a_to_b { ctx.accounts.quote_mint.decimals } else { ctx.accounts.base_mint.decimals },
-        )?;
+        let transfer_out_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.vault_out.to_account_info(),
+                to: ctx.accounts.user_token_out.to_account_info(),
+                authority: ctx.accounts.vault_out.to_account_info(),
+            },
+            seeds,
+        );
+        token::transfer(transfer_out_ctx, amount_out)?;
 
-        // Release transient lock
-        let pool = &mut ctx.accounts.pool_config;
-        pool.is_locked = false;
+        // 6. State updates
+        let registry = &mut ctx.accounts.registry;
+        registry.total_swapped_volume = registry
+            .total_swapped_volume
+            .checked_add(amount_in)
+            .unwrap();
 
-        emit!(SwapExecuted {
-            pool: pool.key(),
-            user: ctx.accounts.user.key(),
-            a_to_b,
+        emit!(FlintSwapExecuted {
+            trader: ctx.accounts.user.key(),
+            token_in: ctx.accounts.mint_in.key(),
+            token_out: ctx.accounts.mint_out.key(),
             amount_in,
             amount_out,
-            fee_bps: effective_fee_bps,
-        });
-
-        Ok(())
-    }
-
-    pub fn keeper_update_targets(
-        ctx: Context<KeeperUpdateTargets>,
-        new_target_base: u64,
-        new_target_quote: u64,
-        new_base_fee: u16,
-    ) -> Result<()> {
-        let pool = &mut ctx.accounts.pool_config;
-        require!(new_base_fee <= 2_000, FlintError::FeeTooHigh);
-
-        pool.target_base_reserve = new_target_base;
-        pool.target_quote_reserve = new_target_quote;
-        pool.base_fee_bps = new_base_fee;
-
-        emit!(TargetsUpdated {
-            pool: pool.key(),
-            new_target_base,
-            new_target_quote,
-            new_base_fee,
+            fee_assessed: protocol_cut,
+            oracle_price: current_price.price,
         });
 
         Ok(())
@@ -195,265 +142,128 @@ pub mod flint_prop_amm {
 }
 
 // -----------------------------------------------------------------------------
-// MATH & COMPUTATION HELPERS
-// -----------------------------------------------------------------------------
-
-#[inline(always)]
-pub fn calculate_dynamic_fee(
-    a_to_b: bool,
-    amount_in: u64,
-    base_reserve: u64,
-    quote_reserve: u64,
-    target_base: u64,
-    target_quote: u64,
-    base_fee_bps: u16,
-    skew_sensitivity_bps: u16,
-) -> Result<u16> {
-    // If trade pushes inventory further away from target, fee increases.
-    // If trade restores inventory toward target, fee decreases.
-    let (current_res, target_res) = if a_to_b {
-        (base_reserve, target_base)
-    } else {
-        (quote_reserve, target_quote)
-    };
-
-    let is_depleting = current_res < target_res;
-    let delta = if is_depleting {
-        target_res.saturating_sub(current_res)
-    } else {
-        current_res.saturating_sub(target_res)
-    };
-
-    let skew_ratio = ((delta as u128) * (PRECISION_SCALE)) / (target_res as u128).max(1);
-    let penalty = ((skew_ratio * (skew_sensitivity_bps as u128)) / PRECISION_SCALE) as u16;
-
-    let fee = if is_depleting && !a_to_b {
-        // Taking out already scarce base token -> high fee
-        base_fee_bps.saturating_add(penalty)
-    } else if !is_depleting && a_to_b {
-        // Adding more base token when already saturated -> high fee
-        base_fee_bps.saturating_add(penalty)
-    } else {
-        // Trade is balancing the pool -> discount fee down to 1 bp minimum
-        base_fee_bps.saturating_sub(penalty).max(1)
-    };
-
-    Ok(fee.min(MAX_BPS as u16))
-}
-
-#[inline(always)]
-pub fn calculate_output_amount(
-    a_to_b: bool,
-    net_amount_in: u64,
-    oracle_price: u64, // Base price in terms of Quote, scaled 1e6
-    base_decimals: u8,
-    quote_decimals: u8,
-) -> Result<u64> {
-    let price_scale = 1_000_000u128;
-    let amount_in_u128 = net_amount_in as u128;
-
-    let amount_out = if a_to_b {
-        // Base In -> Quote Out
-        // AmountOut = AmountIn * Price * 10^(QuoteDecimals - BaseDecimals) / PriceScale
-        let decimal_adjustment = 10u128.pow(quote_decimals as u32);
-        let base_adjustment = 10u128.pow(base_decimals as u32);
-
-        amount_in_u128
-            .checked_mul(oracle_price as u128)
-            .ok_or(FlintError::MathOverflow)?
-            .checked_mul(decimal_adjustment)
-            .ok_or(FlintError::MathOverflow)?
-            .checked_div(price_scale)
-            .ok_or(FlintError::MathOverflow)?
-            .checked_div(base_adjustment)
-            .ok_or(FlintError::MathOverflow)?
-    } else {
-        // Quote In -> Base Out
-        // AmountOut = (AmountIn * PriceScale * 10^BaseDecimals) / (Price * 10^QuoteDecimals)
-        let decimal_adjustment = 10u128.pow(base_decimals as u32);
-        let quote_adjustment = 10u128.pow(quote_decimals as u32);
-
-        amount_in_u128
-            .checked_mul(price_scale)
-            .ok_or(FlintError::MathOverflow)?
-            .checked_mul(decimal_adjustment)
-            .ok_or(FlintError::MathOverflow)?
-            .checked_div(oracle_price as u128)
-            .ok_or(FlintError::MathOverflow)?
-            .checked_div(quote_adjustment)
-            .ok_or(FlintError::MathOverflow)?
-    };
-
-    Ok(amount_out as u64)
-}
-
-// -----------------------------------------------------------------------------
-// ACCOUNT CONTEXTS
+// ACCOUNT VALIDATION STRUCTS
 // -----------------------------------------------------------------------------
 
 #[derive(Accounts)]
-pub struct InitializePool<'info> {
+pub struct InitializeRegistry<'info> {
     #[account(
         init,
-        payer = payer,
-        space = 8 + PoolConfig::INIT_SPACE,
-        seeds = [b"flint_pool", base_mint.key().as_ref(), quote_mint.key().as_ref()],
+        payer = authority,
+        space = 8 + Registry::MAX_SIZE,
+        seeds = [b"flint_registry", authority.key().as_ref()],
         bump
     )]
-    pub pool_config: Account<'info, PoolConfig>,
-
-    /// CHECK: PDA signer for vault balances
-    #[account(
-        seeds = [b"vault_auth", pool_config.key().as_ref()],
-        bump
-    )]
-    pub pool_authority: UncheckedAccount<'info>,
-
-    pub base_mint: InterfaceAccount<'info, Mint>,
-    pub quote_mint: InterfaceAccount<'info, Mint>,
-
-    #[account(
-        init,
-        payer = payer,
-        token::mint = base_mint,
-        token::authority = pool_authority,
-        seeds = [b"base_vault", pool_config.key().as_ref()],
-        bump
-    )]
-    pub base_vault: InterfaceAccount<'info, TokenAccount>,
-
-    #[account(
-        init,
-        payer = payer,
-        token::mint = quote_mint,
-        token::authority = pool_authority,
-        seeds = [b"quote_vault", pool_config.key().as_ref()],
-        bump
-    )]
-    pub quote_vault: InterfaceAccount<'info, TokenAccount>,
+    pub registry: Account<'info, Registry>,
 
     #[account(mut)]
-    pub payer: Signer<'info>,
     pub authority: Signer<'info>,
 
-    pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
-    pub rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
-pub struct Swap<'info> {
+pub struct ExecuteFlintSwap<'info> {
     #[account(
         mut,
-        seeds = [b"flint_pool", base_mint.key().as_ref(), quote_mint.key().as_ref()],
-        bump = pool_config.pool_bump
+        seeds = [b"flint_registry", registry.authority.as_ref()],
+        bump = registry.bump
     )]
-    pub pool_config: Account<'info, PoolConfig>,
+    pub registry: Account<'info, Registry>,
 
-    /// CHECK: Verified via seeds check
-    #[account(
-        seeds = [b"vault_auth", pool_config.key().as_ref()],
-        bump = pool_config.authority_bump
-    )]
-    pub pool_authority: UncheckedAccount<'info>,
-
-    pub base_mint: InterfaceAccount<'info, Mint>,
-    pub quote_mint: InterfaceAccount<'info, Mint>,
+    pub mint_in: Account<'info, Mint>,
+    pub mint_out: Account<'info, Mint>,
 
     #[account(
         mut,
-        seeds = [b"base_vault", pool_config.key().as_ref()],
-        bump
+        seeds = [b"flint_vault", registry.key().as_ref(), mint_in.key().as_ref()],
+        bump,
+        token::mint = mint_in,
+        token::authority = vault_in,
     )]
-    pub base_vault: InterfaceAccount<'info, TokenAccount>,
+    pub vault_in: Account<'info, TokenAccount>,
 
     #[account(
         mut,
-        seeds = [b"quote_vault", pool_config.key().as_ref()],
-        bump
+        seeds = [b"flint_vault", registry.key().as_ref(), mint_out.key().as_ref()],
+        bump,
+        token::mint = mint_out,
+        token::authority = vault_out,
     )]
-    pub quote_vault: InterfaceAccount<'info, TokenAccount>,
+    pub vault_out: Account<'info, TokenAccount>,
 
-    #[account(mut)]
-    pub user_token_source: InterfaceAccount<'info, TokenAccount>,
-    #[account(mut)]
-    pub user_token_destination: InterfaceAccount<'info, TokenAccount>,
+    #[account(
+        mut,
+        constraint = user_token_in.owner == user.key(),
+        constraint = user_token_in.mint == mint_in.key()
+    )]
+    pub user_token_in: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        constraint = user_token_out.owner == user.key(),
+        constraint = user_token_out.mint == mint_out.key()
+    )]
+    pub user_token_out: Account<'info, TokenAccount>,
 
     pub user: Signer<'info>,
-    pub token_program: Interface<'info, TokenInterface>,
-}
 
-#[derive(Accounts)]
-pub struct KeeperUpdateTargets<'info> {
-    #[account(
-        mut,
-        has_one = authority @ FlintError::UnauthorizedKeeper
-    )]
-    pub pool_config: Account<'info, PoolConfig>,
-    pub authority: Signer<'info>,
+    /// CHECK: Validated inside handler using pyth_sdk_solana deserializer
+    pub pyth_oracle: AccountInfo<'info>,
+
+    pub token_program: Program<'info, Token>,
 }
 
 // -----------------------------------------------------------------------------
-// DATA STRUCTURES & ERRORS
+// STATE STRUCTS
 // -----------------------------------------------------------------------------
 
 #[account]
-#[derive(InitSpace)]
-pub struct PoolConfig {
-    pub base_mint: Pubkey,
-    pub quote_mint: Pubkey,
-    pub base_vault: Pubkey,
-    pub quote_vault: Pubkey,
-    pub authority: Pubkey,
-    pub target_base_reserve: u64,
-    pub target_quote_reserve: u64,
-    pub base_fee_bps: u16,
-    pub skew_sensitivity_bps: u16,
-    pub last_oracle_slot: u64,
-    pub authority_bump: u8,
-    pub pool_bump: u8,
-    pub is_locked: bool,
+pub struct Registry {
+    pub authority: Pubkey,         // 32
+    pub fee_tier_bps: u16,         // 2
+    pub is_paused: bool,           // 1
+    pub total_swapped_volume: u64, // 8
+    pub bump: u8,                  // 1
 }
 
-#[event]
-pub struct PoolInitialized {
-    pub pool: Pubkey,
-    pub base_mint: Pubkey,
-    pub quote_mint: Pubkey,
+impl Registry {
+    pub const MAX_SIZE: usize = 32 + 2 + 1 + 8 + 1 + 64; // +64 buffer
 }
 
+// -----------------------------------------------------------------------------
+// EVENTS & ERRORS
+// -----------------------------------------------------------------------------
+
 #[event]
-pub struct SwapExecuted {
-    pub pool: Pubkey,
-    pub user: Pubkey,
-    pub a_to_b: bool,
+pub struct FlintSwapExecuted {
+    pub trader: Pubkey,
+    pub token_in: Pubkey,
+    pub token_out: Pubkey,
     pub amount_in: u64,
     pub amount_out: u64,
-    pub fee_bps: u16,
-}
-
-#[event]
-pub struct TargetsUpdated {
-    pub pool: Pubkey,
-    pub new_target_base: u64,
-    pub new_target_quote: u64,
-    pub new_base_fee: u16,
+    pub fee_assessed: u64,
+    pub oracle_price: i64,
 }
 
 #[error_code]
 pub enum FlintError {
-    #[msg("Fee basis points exceeds safety limit (20%)")]
-    FeeTooHigh,
-    #[msg("Sensitivity basis points exceeds upper limit (50%)")]
-    SensitivityTooHigh,
-    #[msg("Arithmetic overflow or underflow occurred")]
-    MathOverflow,
-    #[msg("Oracle price feed is older than max allowed slot delay")]
-    StaleOracleFeed,
-    #[msg("Execution slippage exceeded user specified limit")]
+    #[msg("Provided fee tier exceeds maximum permissible cap of 1000 bps (10%).")]
+    InvalidFeeTier,
+    #[msg("Protocol execution is currently paused by authority.")]
+    ProtocolPaused,
+    #[msg("Swap input amount must be greater than zero.")]
+    ZeroAmount,
+    #[msg("Pyth oracle account could not be loaded or parsed.")]
+    InvalidOracleFeed,
+    #[msg("Oracle price data has exceeded the maximum staleness threshold.")]
+    StalePriceOracle,
+    #[msg("Oracle confidence interval is too wide; high volatility detected.")]
+    OracleConfidenceTooWide,
+    #[msg("Arithmetic underflow or overflow detected in math core.")]
+    MathUnderflow,
+    #[msg("Flint vault reserves are insufficient for trading pair.")]
+    InsufficientVaultLiquidity,
+    #[msg("Output amount violates the strict user slippage boundary.")]
     SlippageExceeded,
-    #[msg("Reentrancy detected: Pool state currently locked")]
-    ReentrancyDetected,
-    #[msg("Unauthorized invocation of keeper targets")]
-    UnauthorizedKeeper,
 }

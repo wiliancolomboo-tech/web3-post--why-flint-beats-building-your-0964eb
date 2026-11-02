@@ -1,0 +1,10 @@
+Need Custom Liquidity Execution?
+                                     │
+                 ┌───────────────────┴───────────────────┐
+                 ▼                                       ▼
+     [Build Custom Prop AMM]                    [Integrate Flint]
+  ✖ 150k+ Compute Units per swap            ✔ Under 48k Compute Units
+  ✖ Constant MEV & sandwich vulnerability   ✔ Intent-based, zero sandwich risk
+  ✖ $150k+ continuous audit overhead        ✔ Turnkey, audited core rails
+  ✖ Stale oracle latency arbs               ✔ Sub-second PMM intent pricing
+  ✖ Manual DEX aggregator integrations      ✔ Day-one aggregator liquidity routing

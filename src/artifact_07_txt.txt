@@ -1,0 +1,9 @@
+BUILD IN-HOUSE PROP AMM            LEVERAGE FLINT
+                     +---------------------------+   +---------------------------+
+Speed to Market      |  3 - 6 Months             |   |  < 48 Hours               |
+CU Consumption       |  90,000 - 130,000 CU      |   |  34,000 - 38,000 CU       |
+MEV / LVR Protection |  Manual Keeper Cranks     |   |  In-Pool Dynamic Hooks    |
+Auditing Costs       |  $80,000 - $150,000+      |   |  Inherited Core Audits    |
+Aggregator Routing   |  Custom Parser Required   |   |  Zero-Day Native Jupiter  |
+Maintenance Burden   |  Full-Stack Engineering   |   |  Zero Infrastructure Debt |
+                     +---------------------------+   +---------------------------+

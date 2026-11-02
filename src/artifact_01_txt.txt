@@ -1,13 +1,16 @@
-+-----------------------------------------------------------------------------------+
-|                              COMPARATIVE AUDIT METRICS                            |
-+------------------------------------+-----------------------+---------------------+
-| Architectural Dimension            | Bespoke In-House AMM  | Flint Infrastructure|
-+------------------------------------+-----------------------+---------------------+
-| Compute Budget (Avg Swap)          | 115,000 - 180,000 CU  | 38,500 - 52,000 CU  |
-| Account Serialization Overhead     | Borsh (~12k CU)       | Zero-Copy / Pods    |
-| LVR Exposure to Jito Arbitrageurs  | High (Unprotected)    | Low (Oracle-Gated)  |
-| Contention Strategy                | Monolithic State Lock | Segmented Tick/Slot |
-| Token-2022 Transfer Hook Support   | Manual Custom Impl    | Native Adapter Core |
-| Time-to-Market                     | 4 - 6 Months          | < 1 Week via SDK    |
-| Audit Surface Area                 | Full Program Scope    | Parametric Plug-in  |
-+------------------------------------+-----------------------+---------------------+
++-----------------------------------------------------------------------------+
+|                          FLINT CORE LIQUIDITY LAYER                         |
++-----------------------------------------------------------------------------+
+|  [Atomic Vault Custody]  |  [Global Smart Router]  |  [MEV-Protected Engine] |
+|  - Token-2022 Native     |  - Split-route CPI     |  - Jito Bundle Aware    |
+|  - Zero-Copy Ledger      |  - Shared Orderflow    |  - Atomic Settlement    |
++-----------------------------------------------------------------------------+
+                                       | (CPI Lifecycle Hooks)
+                                       v
++-----------------------------------------------------------------------------+
+|                   CUSTOM PROTOCOL HOOK / PRICING ENGINE                     |
++-----------------------------------------------------------------------------+
+|  - Custom Curve Invariants (e.g., EWMA Volatility, Dynamic Asymmetric Fees) |
+|  - Pure Compute / Stateless State Updates (Leaves token custody to Flint)   |
+|  - Consumes < 22,000 Compute Units                                          |
++-----------------------------------------------------------------------------+

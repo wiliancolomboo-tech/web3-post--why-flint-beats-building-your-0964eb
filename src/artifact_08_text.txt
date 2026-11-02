@@ -1,0 +1,6 @@
+flint-amm integration tests
+    ✔ Initializes Flint Pool with MEV Recapture Configuration (1240ms)
+    ✔ Executes swap and internalizes MEV rebate to protocol treasury (482ms)
+    ✔ Rejects trade if slippage floor is breached (88ms)
+
+  3 passing (2s)

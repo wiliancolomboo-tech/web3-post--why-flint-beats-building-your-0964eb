@@ -1,0 +1,7 @@
+flint_hook_amm integration tests
+    ✔ 1. Initializes Flint sovereign hook pool with valid PDAs (382ms)
+    ✔ 2. Successfully executes a swap through Flint hook engine (412ms)
+    ✔ 3. Enforces slippage protection when minAmountOut exceeds curve output (198ms)
+    ✔ 4. Rejects swap if oracle staleness limit is breached (175ms)
+
+  4 passing (1.17s)

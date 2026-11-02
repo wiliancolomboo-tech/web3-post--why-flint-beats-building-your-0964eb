@@ -1,0 +1,12 @@
++-------------------------------------------------------------+----------------------+--------------------+
+| Instruction / Execution Component                           | Flint Engine (CU)    | Standard Prop AMM  |
++-------------------------------------------------------------+----------------------+--------------------+
+| Program Ingress & Discriminator Check                       | 1,120 CU             | 1,250 CU           |
+| Account Hydration & Deserialization (Zero-Copy Read)        | 3,450 CU             | 18,200 CU (Borsh)  |
+| Invariant Mathematical Computation (SIMD Q64.64)            | 4,800 CU             | 68,000 CU (Loops)  |
+| Dynamic Volatility Fee Hook Interpolation                   | 2,900 CU             | 34,000 CU (CPIs)   |
+| Double CPI Token-2022 TransferChecked Settlement            | 34,200 CU            | 85,000 CU          |
+| State Writeback & Monotonic Guard Verification             | 1,850 CU             | 6,500 CU           |
++-------------------------------------------------------------+----------------------+--------------------+
+| TOTAL CU CONSUMPTION                                        | ~48,320 CU           | ~212,950 CU        |
++-------------------------------------------------------------+----------------------+--------------------+

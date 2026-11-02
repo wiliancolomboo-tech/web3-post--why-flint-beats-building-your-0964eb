@@ -1,64 +1,54 @@
 flowchart TD
-    subgraph ClientAndKeepers["Off-Chain Agents & Callers"]
-        U[Retail Trader / Jupiter Aggregator CPI]
-        K[Prop Desk Keeper Engine]
-        O[Pyth / Switchboard Push Oracles]
+    subgraph ClientLayer["Client & Keeper Layer"]
+        Trader["👤 Retail / Institutional Swapper"]
+        Keeper["🤖 Jito-Bundled Keeper / Arbitrageur"]
+        PythOracle["🔮 Pyth Network Real-Time Oracle"]
     end
 
-    subgraph ProgramBoundary["Flint Program Boundary (Solana Sealevel Engine)"]
-        direction TB
-
-        subgraph SecurityGuards["Gatekeeper & Security Guards"]
-            SG1[Reentrancy Guard: Transient Flag Check]
-            SG2[Oracle Staleness & Deviation Filter]
-            SG3[Signer & PDA Verification: Seeds + Bumps]
-        end
-
-        subgraph CoreState["Account State Layer (Zero-Copy / Pod Layout)"]
-            PoolConfig[Pool Configuration PDA<br/>• Seeds: ['flint_pool', BaseMint, QuoteMint]<br/>• Dynamic Base Spread & Volatility Multiplier]
-            InventoryState[Inventory & Skew State PDA<br/>• Target Ratio vs Current Balance<br/>• Cumulative Delta Volume]
-            AuthorityPDA[Pool Authority PDA<br/>• Seeds: ['vault_auth', PoolConfig]]
-        end
-
-        subgraph ExecutionEngine["Execution & Math Primitives"]
-            MathCore[Inventory-Skew & Dynamic Fee Engine<br/>• Fixed-Point 64.64 Arithmetic<br/>• Asymmetric Slippage Dampeners]
-            SwapExec[Swap Settlement Unit<br/>• Token-2022 Transfer Hook Adapter<br/>• Net Balance Delta Verifier]
-        end
-
-        subgraph VaultStorage["SPL Token / Token-2022 Vault Accounts"]
-            BaseVault[Base Token Vault PDA<br/>• Owner: AuthorityPDA]
-            QuoteVault[Quote Token Vault PDA<br/>• Owner: AuthorityPDA]
-        end
+    subgraph FlintCore["Flint AMM Core Protocol Engine"]
+        Router["⚡ Flint Router & Swap Dispatcher\n(Validates Accounts, Nonces & Slippage)"]
+        VaultA["🏦 Vault Token A\n(SPL / Token-2022 Custody PDA)"]
+        VaultB["🏦 Vault Token B\n(SPL / Token-2022 Custody PDA)"]
+        PoolState["📊 Flint Pool State Account\n(Reserves, Tick Index, Hook Registry)"]
     end
 
-    %% Interactions & CPIs
-    O -->|Fresh Price Feeds| SG2
-    K -->|Skew Calibration & Target Rebalance| SG3
-    U -->|Execute Swap Instruction| SG1
+    subgraph CustomHookEngine["Custom Protocol Hook: Dynamic Volatility Curve"]
+        HookRegistry["⚙️ Hook Program Derived Address (PDA)\n['flint_hook', pool_id]"]
+        EMAState["📈 Oracle EWMA History Buffer\n(Calculates Real-Time Realized Volatility)"]
+        InvariantEngine["🧮 Custom Dynamic Pricing Invariant\n(Calculates Δy given Δx and Fee)"]
+    end
 
-    SG1 --> SG2
-    SG2 --> SG3
-    SG3 --> PoolConfig
-    PoolConfig --> InventoryState
+    subgraph SPLRuntime["Solana System & Token Engine"]
+        TokenProg["🪙 SPL Token / Token-2022 Program"]
+    end
 
-    InventoryState --> MathCore
-    MathCore --> SwapExec
+    %% Flow connections
+    Trader -->|1. Direct Swap Transaction| Router
+    Keeper -->|1. Atomic Jito Rebalance Bundle| Router
+    PythOracle -.->|Periodic Price Updates| EMAState
 
-    SwapExec -->|Signed CPI Transfer: Base| BaseVault
-    SwapExec -->|Signed CPI Transfer: Quote| QuoteVault
-    AuthorityPDA -.->|Seeds Signing| BaseVault
-    AuthorityPDA -.->|Seeds Signing| QuoteVault
+    Router -->|2. Check Pool State & Load Hook| PoolState
+    Router -->|3. CPI 'before_swap' Hook Execution| HookRegistry
+    
+    HookRegistry -->|3a. Read Historic Variance| EMAState
+    HookRegistry -->|3b. Compute Dynamic Fee & Slippage Floor| InvariantEngine
+    InvariantEngine -->|3c. Return Validated Swap Delta & Dynamic Fee| HookRegistry
+    
+    HookRegistry -->|4. Return Hook Context Approval| Router
+    
+    Router -->|5. CPI Token Transfer In| TokenProg
+    TokenProg -->|Transfer User -> Vault| VaultA
+    
+    Router -->|6. Execute Math & Fee Allocation| PoolState
+    
+    Router -->|7. CPI Token Transfer Out| TokenProg
+    TokenProg -->|Transfer Vault -> User| VaultB
 
-    SwapExec -->|Post-Execution Balance Check| SG1
+    Router -->|8. CPI 'after_swap' Rebalancing Hook| HookRegistry
+    HookRegistry -->|Update Rolling Variance| EMAState
 
-    classDef client fill:#2d3748,stroke:#4a5568,stroke-width:2px,color:#fff;
-    classDef security fill:#9b2c2c,stroke:#e53e3e,stroke-width:2px,color:#fff;
-    classDef state fill:#2b6cb0,stroke:#4299e1,stroke-width:2px,color:#fff;
-    classDef exec fill:#2f855a,stroke:#48bb78,stroke-width:2px,color:#fff;
-    classDef vault fill:#744210,stroke:#d69e2e,stroke-width:2px,color:#fff;
-
-    class U,K,O client;
-    class SG1,SG2,SG3 security;
-    class PoolConfig,InventoryState,AuthorityPDA state;
-    class MathCore,SwapExec exec;
-    class BaseVault,QuoteVault vault;
+    %% Style Subgraphs
+    style ClientLayer fill:#1e1e2e,stroke:#89b4fa,stroke-width:2px,color:#cdd6f4
+    style FlintCore fill:#181825,stroke:#a6e3a1,stroke-width:2px,color:#cdd6f4
+    style CustomHookEngine fill:#11111b,stroke:#f38ba8,stroke-width:2px,color:#cdd6f4
+    style SPLRuntime fill:#313244,stroke:#fab387,stroke-width:2px,color:#cdd6f4

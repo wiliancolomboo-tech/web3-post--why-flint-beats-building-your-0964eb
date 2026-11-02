@@ -1,0 +1,7 @@
+Program FLiNT5v3yK8ZmWm7y8wGq2d8r5V9vT3uY2vR1xS6eNm invoke [1]
+Program log: Instruction: ExecuteFlintSwap
+Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [2]
+Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 4611 of 172000 compute units
+Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [2]
+Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 4611 of 163000 compute units
+Program FLiNT5v3yK8ZmWm7y8wGq2d8r5V9vT3uY2vR1xS6eNm consumed 34182 of 200000 compute units

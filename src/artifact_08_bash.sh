@@ -1,5 +1,1 @@
-solana-test-validator \
-  --reset \
-  --slots-per-epoch 32 \
-  --bpf-program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA target/deploy/spl_token.so \
-  --quiet
+solana-keygen new -o target/deploy/flint_adapter-keypair.json --no-bip39-passphrase --force

@@ -1,0 +1,9 @@
+Flint vs Prop AMM Benchmark Suite
+    ✔ Initializes Flint pool with dynamic LVR hook parameters (412ms)
+    ✔ Deposits liquidity into Flint Pool (388ms)
+
+[PERFORMANCE REPORT] Flint Swap Compute Units: 34120 CU
+    ✔ Executes Flint swap with sub-40k Compute Unit profile and measures CU (450ms)
+    ✔ Protects LVR: Same-slot consecutive swap activates anti-sandwich fee escalation (395ms)
+
+  4 passing (2s)

@@ -1,0 +1,6 @@
+Flint Modular Engine vs Prop AMM Test Matrix
+    ✔ Initializes the Flint Liquidity Pool (Single PDA Anchor Architecture) (412ms)
+    ✔ Executes Atomic Swap via Cryptographic Intent (Sub-25k CU execution) (289ms)
+    ✔ Rejects expired Intent when deadline is violated (184ms)
+
+  3 passing (1s)

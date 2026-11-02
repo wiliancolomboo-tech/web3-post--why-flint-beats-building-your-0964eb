@@ -1,0 +1,45 @@
+### [0:00 - 0:25] Scene 1: The Trap of Building Your Own Prop AMM
+**Visual:**
+Split screen: Left side shows terminal errors scrolling: "Program failed to complete: Exceeded 200,000 Compute Units", "Custom AMM arbitrage drain (-$42,000 LVR)", followed by a complex 3,000-line Rust codebase. Right side displays clean, minimal Flint SDK initialization.
+
+**Audio (Voiceover):**
+"Every market maker and quantitative trading desk on Solana hits the same wall: they want proprietary liquidity control, custom dynamic curves, and internalized order flow. So, they decide to build their own Prop AMM. 
+Four months later, they’re bogged down in Anchor CU optimizations, battling Jito sandwich bots exploiting oracle latency, and struggling to implement Token-2022 transfer hooks. 
+Building an in-house AMM isn't market making—it's taking on an expensive infrastructure burden. Here is why Flint completely flips this equation."
+
+---
+
+### [0:25 - 0:55] Scene 2: The Core Difference — Math, CU, & MEV Protection
+**Visual:**
+Screen switches to Solana Explorer transaction inspection. A standard custom prop AMM swap consumes 136,200 CU. The camera cuts to Flint executing the identical swap with dynamic inventory skew at only 26,720 CU. Graph renders the constant product invariant curve dynamically widening its spread as inventory depletes.
+
+**Audio (Voiceover):**
+"Look at the execution profile. Standard prop AMMs consume over 130,000 Compute Units, leaving zero headroom for complex multi-hop swaps or aggregator routing.
+Flint operates on a zero-copy, highly optimized fixed-point arithmetic engine that slashes compute to under 27,000 CU.
+More importantly: Loss-Versus-Rebalancing. While custom prop AMMs leak alpha to toxic arbitrageurs every time Pyth lags by a slot, Flint’s autonomous dynamic inventory spread widens in real-time. Toxic flow gets priced out. Your capital stays protected."
+
+---
+
+### [0:55 - 1:25] Scene 3: Native Token-2022 & Instant Jupiter Discoverability
+**Visual:**
+Terminal demonstrates a live swap using a Token-2022 asset with transfer fees enabled. The transaction passes seamlessly. Cut to Jupiter Routing Terminal immediately displaying the Flint pool as the optimal routing path with zero custom bridge code required.
+
+**Audio (Voiceover):**
+"Token-2022 compatibility is another major operational hurdle. Handling transfer fees, custom extensions, and balance delta assertions manually requires dozens of edge-case tests. Flint provides native out-of-the-box support for Token-2022 assets. 
+Even better: with Flint, you skip the aggregator integration queue. Your pools conform to universal routing interfaces, connecting your liquidity to Jupiter and aggregate Solana flow instantly on day one."
+
+---
+
+### [1:25 - 2:00] Scene 4: The Bottom Line & Winning Submission
+**Visual:**
+Summary metrics overlay:
+- Development Time: 4 Months -> 10 Minutes
+- Audit Cost: $150k -> $0
+- Compute Units: 136k -> 26k
+- MEV Defense: Autonomous Dynamic Fee Curve
+Logo: "Flint — The Modular Execution Layer for Solana Prop AMMs".
+
+**Audio (Voiceover):**
+"Don't waste engineering quarters rebuilding what is already perfected at the metal layer. Building your own prop AMM traps your capital in maintenance, audits, and MEV leakage. 
+Flint delivers institutional-grade performance, low CU footprint, native Token-2022 support, and dynamic LVR protection.
+Spend your time refining quantitative alpha—let Flint handle the Solana execution engine. That is why Flint wins."

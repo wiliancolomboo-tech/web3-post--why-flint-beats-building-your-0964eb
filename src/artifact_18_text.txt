@@ -1,0 +1,4 @@
+Program FLNT8sU98sLdZg21vY33n71sE3x6QvP6d19N4V5887rL invoke [1]
+Program log: Instruction: ExecuteSwapHook
+Program FLNT8sU98sLdZg21vY33n71sE3x6QvP6d19N4V5887rL consumed 19124 of 200000 compute units
+Program FLNT8sU98sLdZg21vY33n71sE3x6QvP6d19N4V5887rL success

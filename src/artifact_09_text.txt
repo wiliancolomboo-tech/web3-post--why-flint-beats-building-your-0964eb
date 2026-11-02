@@ -1,0 +1,5 @@
+Program FLiNT11111111111111111111111111111111111111 invoke [1]
+Program log: Instruction: ExecuteSettlement
+Program log: IntentSettled: user=..., amount_in=1000000, net_payout=4990000, fee=10000, nonce=4242
+Program FLiNT11111111111111111111111111111111111111 consumed 47800 of 200000 compute units
+Program FLiNT11111111111111111111111111111111111111 success

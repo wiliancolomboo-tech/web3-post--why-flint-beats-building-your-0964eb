@@ -1,0 +1,22 @@
++---------------------------------------+
+                      |         AGGREGATOR / TRADER           |
+                      +---------------------------------------+
+                                          |
+                                          v (Swap Instruction)
++-----------------------------------------------------------------------------------+
+| FLINT CORE ENGINE (Audited, Low-CU Vault & Tick Management)                      |
+|                                                                                   |
+|  - Token Vaults (Spl-Token / Token-2022)                                          |
+|  - Canonical Math Engine (Sub-30k CU concentrated execution)                      |
+|  - Aggregator Standard Adapters (Zero-overhead Jupiter routing)                   |
+|                                                                                   |
+|            |                                           ^                          |
+|            | 1. Invoke Hook                            | 2. Return Adjusted       |
+|            v (Pre/Post Callback)                       |    Fee & Spread          |
+|  +-------------------------------------------------------------+                  |
+|  | PROTOCOL-DEFINED HOOK PROGRAM                               |                  |
+|  |  - Custom Dynamic Fee Matrix (Volatility / Oracle Based)    |                  |
+|  |  - LVR / MEV Internalization Guard                          |                  |
+|  |  - Private Liquidity / Gated Access Control                 |                  |
+|  +-------------------------------------------------------------+                  |
++-----------------------------------------------------------------------------------+

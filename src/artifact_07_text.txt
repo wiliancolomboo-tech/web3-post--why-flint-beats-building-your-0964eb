@@ -1,0 +1,13 @@
+Flint vs Prop AMM Performance & Security Matrix
+    ✔ Initializes the Flint Modular Pool with Dynamic LVR Defense Hooks (184ms)
+    ✔ Deposits dual-sided liquidity into Flint reserves (142ms)
+
+==================================================
+[CU AUDIT] Flint Swap Execution Units: 27312 CU
+==================================================
+
+    ✔ Executes modular swap and verifies CU consumption <= 29,000 (161ms)
+    ✔ Enforces LVR Volatility Surcharge on Rapid Sequential Swaps (138ms)
+    ✔ Guards against slippage attacks (Mathematical Invariant Defense) (89ms)
+
+  5 passing (714ms)

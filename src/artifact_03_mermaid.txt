@@ -1,0 +1,38 @@
+flowchart TD
+    subgraph ClientLayer ["Client & Aggregator Layer"]
+        User["User / Trader"]
+        JupRouter["Jupiter / Aggregator Engine"]
+        Keeper["Arbitrageur / Keeper Bot"]
+    end
+
+    subgraph FlintCore ["Flint Protocol Core (Base Layer)"]
+        PoolState["Pool State PDA\n[seeds: 'pool', token_a, token_b]"]
+        VaultA["Vault A (SPL Token Account)"]
+        VaultB["Vault B (SPL Token Account)"]
+        TickArray["Tick Array Storage PDA\n[seeds: 'ticks', pool, start_index]"]
+        CoreSwap["Flint Swap Entrypoint\n(Processes Vaults, Delta Math)"]
+    end
+
+    subgraph CustomHook ["Protocol Custom Execution Layer (Your Code)"]
+        HookRegistry["Hook Registry PDA\n[seeds: 'hook_config', pool]"]
+        OracleSource["Pyth / Switchboard Oracle Account"]
+        VolCalculator["Dynamic Volatility & LVR Fee Engine"]
+        AccessGuard["Permission / Whitelist Guard (Optional)"]
+    end
+
+    User -->|"1. Submit Swap Transaction"| JupRouter
+    Keeper -->|"1. Submit JIT Arb Bundle"| CoreSwap
+    JupRouter -->|"2. Direct Route Swap"| CoreSwap
+
+    CoreSwap -->|"3. Account Validation & Signer Check"| PoolState
+    CoreSwap -->|"4. CPI: pre_swap_hook()"| HookRegistry
+    
+    HookRegistry -->|"4a. Read Instant Price & Confidence"| OracleSource
+    HookRegistry -->|"4b. Compute Dynamic Fee \\gamma_t"| VolCalculator
+    HookRegistry -->|"4c. Validate Sender / Slippage"| AccessGuard
+    HookRegistry -->|"5. Return Dynamic Spread & Fee Parameters"| CoreSwap
+
+    CoreSwap -->|"6. Compute Delta X/Y Invariant"| TickArray
+    CoreSwap -->|"7. Execute Transfer"| VaultA
+    CoreSwap -->|"8. Execute Transfer"| VaultB
+    CoreSwap -->|"9. CPI: post_swap_hook() State Update"| HookRegistry

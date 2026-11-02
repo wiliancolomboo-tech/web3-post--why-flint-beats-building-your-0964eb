@@ -1,0 +1,31 @@
++-----------+---------------------------------------+-------------------------------------------------------+
+| Timestamp | Visual Cue                            | Spoken Narrative / Pitch Script                       |
++===========+=======================================+=======================================================+
+| 00:00 -   | Title Screen: "Why Flint Beats        | "Every market-making desk and protocol team on        |
+| 00:20     | Building Your Own Prop AMM." Split    | Solana eventually hits the same wall: building your   |
+|           | screen: Complex CLMM code vs. Flint   | own Prop AMM sounds attractive for capturing retail   |
+|           | clean modular integration.            | flow, but in production, you are hit with state bloat,|
+|           |                                       | oracle latency, toxic LVR, and crushing compute costs.|
++-----------+---------------------------------------+-------------------------------------------------------+
+| 00:20 -   | Terminal showing `anchor test`.       | "Here is a standard custom AMM swap: 140,000 CUs,     |
+| 00:45     | CU profiling showing 143,700 CU vs.   | vulnerable to Jito searchers sandwiching stale Pyth   |
+|           | Flint running at 32,500 CU.           | feeds. Now look at Flint: running at under 35,000 CU, |
+|           |                                       | composable inside complex Jupiter multi-hop routes    |
+|           |                                       | without ever hitting Solana's compute boundaries."    |
++-----------+---------------------------------------+-------------------------------------------------------+
+| 00:45 -   | Architecture Flowchart highlighting   | "Flint decouples off-chain algorithmic quoting from   |
+| 01:15     | Dynamic Fee Ramps, Oracle Confidence  | on-chain invariant settlement. Through parametric     |
+|           | verification, and Vault PDA auth.     | virtual reserves and our dynamic confidence-interval  |
+|           |                                       | fee ramps, your liquidity is mathematically shielded  |
+|           |                                       | from toxic order flow without maintaining fragile,   |
+|           |                                       | high-maintenance tick arrays."                        |
++-----------+---------------------------------------+-------------------------------------------------------+
+| 01:15 -   | Live transaction on Solana Explorer / | "Token-2022 compatibility, transfer hook verification,|
+| 01:40     | localnet showing sub-second atomic    | zero-copy deserialization, and reentrancy protections |
+|           | settlement and invariant enforcement. | are solved at the infrastructure layer. You focus on  |
+|           |                                       | your quantitative strategies; Flint handles safety."  |
++-----------+---------------------------------------+-------------------------------------------------------+
+| 01:40 -   | Summary Slide: 77% Less CU, Zero      | "Don't burn capital rebuilding battle-tested SVM      |
+| 02:00     | LVR Leakage, Day-1 Composability.     | plumbing. Choose Flint: the high-performance liquidity|
+|           | Contact & GitHub links.               | engine built specifically for institutional Solana."  |
++-----------+---------------------------------------+-------------------------------------------------------+

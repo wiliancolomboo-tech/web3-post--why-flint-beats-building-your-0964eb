@@ -1,0 +1,10 @@
+flint-integration-bounty/
+├── Anchor.toml
+├── Cargo.toml
+├── programs/
+│   └── flint-protocol-adapter/
+│       ├── Cargo.toml
+│       └── src/
+│           ├── lib.rs
+├── tests/
+│   └── flint_adapter.ts

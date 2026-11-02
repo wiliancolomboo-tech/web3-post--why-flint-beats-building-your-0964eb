@@ -1,0 +1,10 @@
+flint-adapter-benchmark
+    ✔ Initializes the Flint Market Pool with Zero Reentrancy Sentinel (482ms)
+    ✔ Executes a Swap and Confirms CU Consumption is under 50k (312ms)
+    ✔ Enforces Slippage Ceiling Protection (Revert on MEV Sandwiches) (198ms)
+
+  3 passing (1.2s)
+
+Program Log: Instruction: ExecuteFlintSwap
+Program Consumed: 41892 of 60000 compute units
+Program Return: FL1NT11111111111111111111111111111111111111 success

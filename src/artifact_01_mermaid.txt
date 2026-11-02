@@ -1,0 +1,74 @@
+flowchart TD
+    subgraph Client_And_Aggregator ["Client & Routing Layer"]
+        User["User / MEV Searcher / Aggregator"]
+        Jup["Jupiter Aggregator Engine"]
+    end
+
+    subgraph Flint_Engine ["Flint AMM Protocol Architecture"]
+        PoolState["PDA: Pool State ['pool', mint_a, mint_b]"]
+        VaultA["PDA: Token A Vault ['vault_a', pool_key]"]
+        VaultB["PDA: Token B Vault ['vault_b', pool_key]"]
+        HookRegistry["PDA: Dynamic Hook Registry ['hook', pool_key]"]
+        TransientGuard["PDA: Transient Reentrancy & LVR Guard"]
+        
+        subgraph Hook_Pipeline ["Atomic Execution & Hook Pipeline"]
+            PreSwapHook["Pre-Swap Hook: Invariant & Volatility Check"]
+            DynamicFeeEngine["Dynamic Fee Engine: Base + (Sigma * Delta_T)"]
+            MathCore["Optimized Fixed-Point Invariant Math Core (UQ64.64)"]
+            PostSwapHook["Post-Swap Hook: MEV / Tick Limit Guard"]
+        end
+    end
+
+    subgraph Prop_AMM ["Fragile Custom In-House Prop AMM"]
+        PropState["Monolithic Prop AMM State"]
+        PropVaultA["Token Vault A"]
+        PropVaultB["Token Vault B"]
+        PropMath["Heavy Floating/Iterative Math (High CU)"]
+        NoMEV["No Dynamic LVR / MEV Safeguards"]
+    end
+
+    subgraph Solana_Runtime ["Solana Sealevel Runtime"]
+        TokenProgram["SPL Token / Token-2022 Program"]
+        Clock["Sysvar: Clock"]
+        SlotHistory["Sysvar: SlotHistory"]
+    end
+
+    %% Routing Flow
+    User -->|Route Request| Jup
+    Jup -->|Direct CPI (Standard Swap)| Flint_Engine
+    User -->|Direct Arbitrage Attempt| Flint_Engine
+    User -.->|Direct Custom Swap (High CU, MEV Target)| Prop_AMM
+
+    %% Flint Execution Path
+    Flint_Engine -->|1. Acquire Transient Lock & Read Clock| TransientGuard
+    TransientGuard --> Clock
+    Flint_Engine -->|2. Query Dynamic Hook Parameters| HookRegistry
+    HookRegistry --> PreSwapHook
+    PreSwapHook --> DynamicFeeEngine
+    DynamicFeeEngine --> MathCore
+    MathCore -->|Compute Output Amount| PostSwapHook
+    PostSwapHook -->|3. Clear Transient Lock| TransientGuard
+
+    %% State and Vault Updates
+    MathCore -->|4. Transfer In / Transfer Out| TokenProgram
+    TokenProgram -->|Debit/Credit| VaultA
+    TokenProgram -->|Debit/Credit| VaultB
+    MathCore -->|5. Update Reserves & Cumulative Volumes| PoolState
+
+    %% Prop AMM Execution Path (Failure Mode)
+    Prop_AMM --> PropState
+    PropState --> PropMath
+    PropMath --> PropVaultA
+    PropMath --> PropVaultB
+    Prop_AMM -.->|Vulnerable to Toxic LVR / High Gas Drops| NoMEV
+
+    %% Styling
+    classDef flintStyle fill:#0f3460,stroke:#00adb5,stroke-width:2px,color:#fff;
+    classDef propStyle fill:#3f000c,stroke:#e94560,stroke-width:2px,color:#fff;
+    classDef runtimeStyle fill:#1a1a2e,stroke:#eed820,stroke-width:2px,color:#fff;
+    classDef clientStyle fill:#16213e,stroke:#533483,stroke-width:2px,color:#fff;
+
+    class PoolState,VaultA,VaultB,HookRegistry,TransientGuard,PreSwapHook,DynamicFeeEngine,MathCore,PostSwapHook flintStyle;
+    class PropState,PropVaultA,PropVaultB,PropMath,NoMEV propStyle;
+    class TokenProgram,Clock,SlotHistory runtimeStyle;
+    class User,Jup clientStyle;

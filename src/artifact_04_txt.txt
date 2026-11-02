@@ -1,0 +1,18 @@
++------------------------------+------------------------------------+---------------------------------------+
+| Vulnerability / Attack Vector| Custom Prop AMM Exposure           | Flint Invariant Architecture Solution |
++------------------------------+------------------------------------+---------------------------------------+
+| 1. Cross-Instruction         | Vulnerable if pool lacks transient | Atomic single-byte transient locks    |
+|    Reentrancy via CPI Hook   | state clearing during CPI transfer | enforce non-reentrancy on all vaults  |
++------------------------------+------------------------------------+---------------------------------------+
+| 2. Loss-Versus-Rebalancing   | Severe. Static fees permit search- | Multi-tier slot delta hooks penalize  |
+|    (LVR) & Sandwich MEV      | ers to extract value at zero cost  | atomic back-to-back bundle extractions|
++------------------------------+------------------------------------+---------------------------------------+
+| 3. Rounding Exploits &       | Truncation in custom integer math  | Strict `checked_*` arithmetic with    |
+|    Dust Reserve Draining     | allows infinitesimal reserve bleed | 1e12 fixed-point scale guards         |
++------------------------------+------------------------------------+---------------------------------------+
+| 4. PDA Seed Collisions       | Vulnerable to fake token/vault     | Canonical canonical-bump seeds bound  |
+|    & Authority Hijacking     | injection without hard typed checks| to mint pairs and program ID          |
++------------------------------+------------------------------------+---------------------------------------+
+| 5. Compute Unit Exhaustion   | Fails under peak network traffic;  | Zero-copy, sub-38k CU swaps ensure    |
+|    Dropped Transactions      | aggregator drops route inclusion   | immediate landing in congested blocks |
++------------------------------+------------------------------------+---------------------------------------+

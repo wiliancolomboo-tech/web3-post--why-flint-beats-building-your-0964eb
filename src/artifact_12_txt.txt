@@ -1,0 +1,18 @@
+========================================================================================
+SOLANA AUDIT VECTOR            DEFENSE IMPLEMENTATION IN FLINT HOOK
+========================================================================================
+[1] Missing Signer Check       • Strict Signer<'info> on authority & core engine accounts.
+                               • Mock invocation attempts fail at Anchor IDL constraint layer.
+
+[2] PDA Seed Bump Validation   • Canonical bump verification via `find_program_address`.
+                               • Deterministic seeds: [b"flint_hook", pool_id.key().as_ref()].
+
+[3] Integer Over/Underflow     • Checked arithmetic (`checked_mul`, `checked_add`, `checked_div`).
+                               • Reverts with explicit `HookError::MathOverflow`.
+
+[4] Reentrancy & Cross-CPI     • Read-only state isolation during hook calculation.
+                               • Custody operations cannot call back into `execute_swap_hook`.
+
+[5] Account Confusion / Type   • Discriminator validation enforced by Anchor 0.30 `AccountLoader`.
+                               • Explicit `require_keys_eq!` between oracle and pool state.
+========================================================================================

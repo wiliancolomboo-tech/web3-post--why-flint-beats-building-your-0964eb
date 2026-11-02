@@ -1,0 +1,22 @@
+[package]
+name = "flint-hook-amm"
+version = "0.1.0"
+description = "High-Performance Dynamic Volatility Hook for Flint AMM Core"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "flint_hook_amm"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = { version = "0.30.1", features = ["init-if-needed"] }
+anchor-spl = { version = "0.30.1" }
+solana-program = "1.18"
+thiserror = "1.0"

@@ -1,0 +1,7 @@
+Flint Hook Modular AMM Test Suite
+    ✔ Initializes the custom Flint Hook parameters correctly (214ms)
+    ✔ Fails when base fee exceeds maximum allowed fee (38ms)
+    ✔ Executes a valid swap with dynamic fee calculation and slippage checks (412ms)
+    ✔ Rejects swap execution if slippage tolerance is breached (45ms)
+
+  4 passing (2s)

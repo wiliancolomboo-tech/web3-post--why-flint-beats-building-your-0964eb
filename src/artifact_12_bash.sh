@@ -1,0 +1,1 @@
+solana logs | grep -E "(Program FLiNT|consumed)"

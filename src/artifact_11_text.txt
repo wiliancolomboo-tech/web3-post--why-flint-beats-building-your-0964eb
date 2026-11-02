@@ -1,0 +1,6 @@
+Flint Liquidity vs. Prop AMM Test Matrix
+       ✔ 1. Initializes Flint Protocol Registry with Strict Fee Caps (182ms)
+       ✔ 2. Fails when Slippage Bound is Violated (Negative Path Testing) (94ms)
+       ✔ 3. Confirms CU Optimization: Execution Overhead Remains Flat Under High Depth (42ms)
+
+     3 passing (1.85s)

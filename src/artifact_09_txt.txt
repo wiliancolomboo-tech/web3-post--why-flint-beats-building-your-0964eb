@@ -1,0 +1,18 @@
++-----------------------------------------+-------------------------------------------------------------+
+| Vulnerability Class                     | How Flint Eliminates the Attack Vector                      |
++-----------------------------------------+-------------------------------------------------------------+
+| 1. Missing Signer & Authority Spoofing  | Strict Anchor `has_one = vault_a` and PDA canonical seed    |
+|                                         | bumps eliminate account substitution and unauthorized drain.|
++-----------------------------------------+-------------------------------------------------------------+
+| 2. Loss-Versus-Rebalancing (LVR)        | Volatility-adjusted dynamic fee modifier updates dynamically|
+|                                         | within the swap hook, dampening latency arb by searchers.   |
++-----------------------------------------+-------------------------------------------------------------+
+| 3. Rounding & Precision Drain           | Strict integer division rounding directions: always favor   |
+|                                         | the pool reserves; input fees round up, output rounds down. |
++-----------------------------------------+-------------------------------------------------------------+
+| 4. Stale Oracle Front-Running           | Pyth/Switchboard confidence check gates execution if the    |
+|                                         | oracle's slot drift is > 2 slots or spread is anomalous.    |
++-----------------------------------------+-------------------------------------------------------------+
+| 5. Reentrancy through Token Hooks       | State updates and invariant commitments occur before vault  |
+|                                         | settlement CPI execution (Checks-Effects-Interactions).     |
++-----------------------------------------+-------------------------------------------------------------+

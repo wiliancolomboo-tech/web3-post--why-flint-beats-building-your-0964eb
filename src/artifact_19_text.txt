@@ -1,0 +1,14 @@
+Flint Liquidity Engine vs Bespoke Prop AMM Benchmarks
+    ✔ Initializes the Flint modular pool with dynamic fee PDA (412ms)
+
+==================================================
+  FLINT ENGINE SWAP CU CONSUMED: 48320 CU
+  TRADITIONAL PROP AMM BENCHMARK: ~210,000 CU
+  COMPUTE SAVINGS: ~76.99%
+==================================================
+
+    ✔ Benchmarks Execution Gas / CU Overhead on Swap (528ms)
+    ✔ Enforces strictly positive monotonic invariant guards (Rejects negative slippage) (214ms)
+    ✔ Executes dynamic fee volatility hook adjustment under high oracle divergence (185ms)
+
+  4 passing (2s)
